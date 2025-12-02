@@ -10,7 +10,7 @@ El objetivo es ofrecer una solución completa con frontend y backend integrados,
 
 ---
 
-# 📁 Estructura del proyecto #
+### 📁 Estructura del proyecto #
 
 TFG_CelesteOlmedo/
 │
@@ -18,7 +18,7 @@ TFG_CelesteOlmedo/
 │
 └── api/ # Backend REST en Spring Boot
 
-# Requisitos para la ejecución #
+## Requisitos para la ejecución #
 Asegurarse de tener instalado lo siguiente:
 
 # 🟡 Flutter
