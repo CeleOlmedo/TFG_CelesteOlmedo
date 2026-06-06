@@ -6,6 +6,7 @@ import 'package:nutricam_proyect/screens/edit_profile_screen.dart';
 import 'package:nutricam_proyect/screens/home_screen.dart';
 import 'package:nutricam_proyect/screens/professional_list_screen.dart';
 import 'package:nutricam_proyect/screens/scan_plate_screen.dart';
+import 'package:nutricam_proyect/screens/goal_selection_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userName;
@@ -111,6 +112,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               SizedBox(height: 20),
 
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const GoalSelectionScreen(),
+                      ),
+                    ).then((_) {
+                      setState(() {});
+                    });
+                  },
+                  child: const Text(
+                    "Configurar Objetivo",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+
               Text(
                 "${user?.name} ${user?.surname}",
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -167,7 +191,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(height: 5),
                     _infoRow('Altura', "null"),
                     SizedBox(height: 5),
-
+                    _infoRow(
+                      'Objetivo',
+                      user?.objective ?? 'No configurado',
+                      ),
                   ],
                 ),
               ),

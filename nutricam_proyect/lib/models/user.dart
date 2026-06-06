@@ -4,6 +4,7 @@ class User {
   String surname;
   String birthDate;
   String email;
+  String? objective;
 
   User({
     this.id,
@@ -11,6 +12,7 @@ class User {
     required this.surname,
     required this.birthDate,
     required this.email,
+    this.objective,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class User {
       surname: json["surname"] ?? "",
       birthDate: json["birthDate"] ?? "",
       email: json["email"] ?? "",
+      objective: json["objective"],
     );
   }
 
@@ -30,6 +33,7 @@ class User {
       "surname": surname,
       "birthDate": birthDate,
       "email": email,
+      "objective": objective,
     };
   }
 }

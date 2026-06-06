@@ -45,6 +45,8 @@ public class UserController {
         user.setName(updatedUser.getName());
         user.setSurname(updatedUser.getSurname());
         user.setBirthDate(updatedUser.getBirthDate());
+        user.setObjective(updatedUser.getObjective());
+
         return userRepository.save(user);
     }
 
