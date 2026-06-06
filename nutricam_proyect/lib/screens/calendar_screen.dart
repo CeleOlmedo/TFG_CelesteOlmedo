@@ -118,7 +118,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               // Calendario
               TableCalendar(
                 firstDay: DateTime.utc(2024, 1, 1),
-                lastDay: DateTime.utc(2025, 12, 31),
+                lastDay: DateTime.utc(2030, 12, 31),
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 onDaySelected: (selectedDay, focusedDay) {

@@ -287,12 +287,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       helpText: "Seleccione su fecha de nacimiento",
     );
 
-    if (picked != null) {
-      setState(() {
-        birthDateController.text = picked.toString().split(" ")[0];
-      });
+    setState(() {
+      birthDateController.text = picked.toString().split(" ")[0];
+    });
     }
-  }
 
   Future<Map<String, dynamic>?> registrarUsuario(
       String name,
