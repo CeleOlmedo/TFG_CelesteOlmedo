@@ -1,140 +1,145 @@
 import 'package:flutter/material.dart';
 import 'package:nutricam_proyect/core/app_colors.dart';
-import 'package:nutricam_proyect/screens/calendar_screen.dart';
-import 'package:nutricam_proyect/screens/home_screen.dart';
-import 'package:nutricam_proyect/screens/profile_screen.dart';
-import 'package:nutricam_proyect/screens/scan_plate_screen.dart';
+import 'package:nutricam_proyect/widgets/app_bottom_navigation.dart';
 
-class ProfessionalListScreen extends StatefulWidget {
+class ProfessionalListScreen extends StatelessWidget {
   final String userName;
-  const ProfessionalListScreen({super.key, required this.userName});
 
-  @override
-  State<ProfessionalListScreen> createState() => _ProfessionalListScreenState();
-}
+  const ProfessionalListScreen({
+    super.key,
+    required this.userName,
+  });
 
-class _ProfessionalListScreenState extends State<ProfessionalListScreen> {
-  final List<Professional> professionals = [
+  static const List<Professional> professionals = [
     Professional(
       name: 'Dr. Carlos Mendoza',
-      specialty: 'Deportivo',
+      specialty: 'Nutrición deportiva',
       rating: 4.9,
       reviews: 156,
       availability: 'Disponible',
     ),
     Professional(
       name: 'Dra. Ana Rodríguez',
-      specialty: 'Nutrición Clínica',
+      specialty: 'Nutrición clínica',
       rating: 5.0,
       reviews: 120,
       availability: 'Disponible',
     ),
     Professional(
       name: 'Dr. Luis Fernández',
-      specialty: 'Nutrición Vegetariana',
+      specialty: 'Nutrición vegetariana',
       rating: 4.8,
       reviews: 98,
       availability: 'Disponible en 30 min',
     ),
     Professional(
       name: 'Dra. Patricia Gómez',
-      specialty: 'Móvil',
-      rating: null,
-      reviews: null,
+      specialty: 'Atención móvil',
       availability: 'Disponible',
     ),
   ];
 
-  int _selectedIndex = 2;
-
-  void _onItemTapped(int index) {
-    if (index == 4) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ProfileScreen(userName: widget.userName)),
-      );
-    } else if (index == 0){
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen(userName: widget.userName)),
-      );
-    } else if (index == 1){
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ScanPlateScreen(userName: widget.userName)),
-      );
-    } else if (index == 3){
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => CalendarScreen(userName: widget.userName)),
-      );
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Profesionales Disponibles')),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: AppColors.secondary,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey.shade600,
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt),
-            label: "Escanear",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.medical_services),
-            label: "Profesionales",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: "Calendario",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: "Perfil",
-          ),
-        ],
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Profesionales'),
+        backgroundColor: AppColors.background,
+        automaticallyImplyLeading: false,
       ),
-      body: ListView.builder(
+      bottomNavigationBar: AppBottomNavigation(
+        currentIndex: 2,
+        userName: userName,
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(16),
         itemCount: professionals.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final prof = professionals[index];
+          final professional = professionals[index];
+
           return Card(
-            margin: EdgeInsets.symmetric(horizontal: 12, vertical: 15),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundImage: AssetImage(
-                  prof.name.contains('Dra.')
-                      ? 'assets/images/femaleDoctor.png'
-                      : 'assets/images/maleDoctor.png',
-                ),
-              ),
-              title: Text(prof.name),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
                 children: [
-                  Text(prof.specialty),
-                  if (prof.rating != null && prof.reviews != null)
-                    Text('★ ${prof.rating} (${prof.reviews})'),
-                  Text(prof.availability),
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundImage: AssetImage(
+                      professional.name.contains('Dra.')
+                          ? 'assets/images/femaleDoctor.png'
+                          : 'assets/images/maleDoctor.png',
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          professional.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          professional.specialty,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        if (professional.rating != null &&
+                            professional.reviews != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '★ ${professional.rating} '
+                            '(${professional.reviews} reseñas)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.amber,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        Text(
+                          professional.availability,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: professional.availability == 'Disponible'
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'La consulta profesional se implementará próximamente.',
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Consultar',
+                      style: TextStyle(
+                        color: AppColors.backgroundComponent,
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-              trailing: ElevatedButton(
-                onPressed: () {
-                  // Acción de videollamada
-                },
-                child: Text('Videollamada'),
               ),
             ),
           );
@@ -151,11 +156,11 @@ class Professional {
   final int? reviews;
   final String availability;
 
-  Professional({
+  const Professional({
     required this.name,
     required this.specialty,
+    required this.availability,
     this.rating,
     this.reviews,
-    required this.availability,
   });
 }

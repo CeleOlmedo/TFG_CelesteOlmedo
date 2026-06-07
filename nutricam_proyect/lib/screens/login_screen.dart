@@ -2,29 +2,177 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:nutricam_proyect/components/user.dart';
 import 'package:nutricam_proyect/core/app_colors.dart';
 import 'package:nutricam_proyect/core/user_session.dart';
+import 'package:nutricam_proyect/models/user.dart';
 import 'package:nutricam_proyect/screens/home_screen.dart';
 import 'package:nutricam_proyect/screens/register_screen.dart';
 
-class LoginScreen extends StatelessWidget {
-  LoginScreen({super.key});
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = await _loginUser(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (user != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              userName: user.name,
+            ),
+          ),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Email o contraseña incorrectos."),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "No se pudo conectar con el servidor. Intentá nuevamente.",
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<User?> _loginUser(String email, String password) async {
+    final url = Uri.parse("http://10.0.2.2:8080/login");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "email": email,
+        "password": password,
+      }),
+    );
+
+    if (response.statusCode != 200 ||
+        response.body.isEmpty ||
+        response.body == "null") {
+      return null;
+    }
+
+    final decodedBody = jsonDecode(response.body);
+
+    if (decodedBody is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final user = User.fromJson(decodedBody);
+
+    UserSession.currentUser = user;
+
+    return user;
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? "";
+
+    if (email.isEmpty) {
+      return "Ingresá tu correo electrónico";
+    }
+
+    final emailExpression = RegExp(
+      r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    );
+
+    if (!emailExpression.hasMatch(email)) {
+      return "Ingresá un correo válido";
+    }
+
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Ingresá tu contraseña";
+    }
+
+    return null;
+  }
+
+  void _openRegisterScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const RegisterScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 40,
+                ),
+                child: Form(
+                  key: _formKey,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -33,6 +181,9 @@ class LoginScreen extends StatelessWidget {
                         width: 125,
                         height: 125,
                       ),
+
+                      const SizedBox(height: 8),
+
                       Text(
                         "NutriCam",
                         style: TextStyle(
@@ -41,28 +192,37 @@ class LoginScreen extends StatelessWidget {
                           color: AppColors.logoColor,
                         ),
                       ),
+
+                      const SizedBox(height: 4),
+
                       Text(
                         "Creando hábitos saludables",
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 18,
                           color: Colors.grey.shade600,
                         ),
                       ),
-                      SizedBox(height: 60),
-                      TextField(
-                        controller: emailController,
+
+                      const SizedBox(height: 48),
+
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autocorrect: false,
                         decoration: InputDecoration(
-                          label: Text(
-                            "Email",
-                            style: TextStyle(color: AppColors.accent),
-                          ),
+                          labelText: "Email",
                           hintText: "tu@email.com",
-                          hintStyle: TextStyle(color: AppColors.accent),
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
                               color: AppColors.primary,
-                              width: 2,
+                              width: 1.5,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
@@ -73,135 +233,116 @@ class LoginScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                        validator: _validateEmail,
                       ),
 
-                      SizedBox(height: 20),
-                      TextField(
-                        controller: passwordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          label: Text(
-                            "Contraseña",
-                            style: TextStyle(color: AppColors.accent),
-                          ),
-                          hintText: "******",
-                          hintStyle: TextStyle(color: AppColors.accent),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: AppColors.primary,
-                              width: 2,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.primary),
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 18),
 
-                      SizedBox(height: 50),
-
-                      ElevatedButton(
-                        onPressed: () async {
-                          final email = emailController.text;
-                          final password = passwordController.text;
-                          final userData = await loginUsuario(email, password);
-
-                          if (userData != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => HomeScreen(
-                                  userName: userData.name,
-                                ),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Email o contraseña incorrectos")),
-                            );
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) {
+                          if (!_isLoading) {
+                            _login();
                           }
                         },
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: Size(250, 50),
-                          shape: RoundedRectangleBorder(
+                        decoration: InputDecoration(
+                          labelText: "Contraseña",
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          backgroundColor: AppColors.primary,
-                          shadowColor: AppColors.primary,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppColors.primary,
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppColors.primary,
+                              width: 2,
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          "Ingresar",
-                          style: TextStyle(color: Colors.white),
+                        validator: _validatePassword,
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(52),
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  "Ingresar",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
-                      SizedBox(height: 15),
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RegisterScreen(),
+
+                      const SizedBox(height: 14),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed:
+                              _isLoading ? null : _openRegisterScreen,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(52),
+                            foregroundColor: AppColors.primary,
+                            side: BorderSide(
+                              color: AppColors.primary,
+                              width: 1.5,
                             ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: Size(250, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          foregroundColor: AppColors.primary,
-                          side: BorderSide(color: AppColors.primary, width: 2),
-                        ),
-                        child: Text(
-                          "Registrarse",
-                          style: TextStyle(color: AppColors.primary),
+                          child: const Text("Registrarse"),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
-
-  Future<User?> loginUsuario(String email, String password) async {
-    final url = Uri.parse("http://10.0.2.2:8080/login");
-
-    final body = jsonEncode({"email": email, "password": password});
-
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: body,
-    );
-
-    print("Status: ${response.statusCode}");
-    print("Body: ${response.body}");
-
-    if (response.statusCode == 200 &&
-        response.body.isNotEmpty &&
-        response.body != "null") {
-        
-      final data = jsonDecode(response.body);
-
-      // Convertir respuesta en un User
-      final user = User.fromJson(data);
-
-      // Guardar usuario globalmente
-      UserSession.currentUser = user;
-
-      return user;
-    }
-
-    return null;
-  }
-
-
-
 }

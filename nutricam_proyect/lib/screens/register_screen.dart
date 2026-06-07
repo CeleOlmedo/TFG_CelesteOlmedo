@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:nutricam_proyect/core/app_colors.dart';
+import 'package:nutricam_proyect/core/user_session.dart';
+import 'package:nutricam_proyect/models/user.dart';
 import 'package:nutricam_proyect/screens/home_screen.dart';
 import 'package:nutricam_proyect/screens/login_screen.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,29 +16,272 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final TextEditingController birthDateController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController surnameController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _surnameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _birthDateController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _surnameController.dispose();
+    _emailController.dispose();
+    _birthDateController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate() async {
+    final today = DateTime.now();
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime(today.year - 18),
+      firstDate: DateTime(1920),
+      lastDate: today,
+      helpText: "Seleccioná tu fecha de nacimiento",
+      cancelText: "Cancelar",
+      confirmText: "Aceptar",
+    );
+
+    if (pickedDate == null || !mounted) {
+      return;
+    }
+
+    final formattedDate =
+        "${pickedDate.year.toString().padLeft(4, '0')}-"
+        "${pickedDate.month.toString().padLeft(2, '0')}-"
+        "${pickedDate.day.toString().padLeft(2, '0')}";
+
+    setState(() {
+      _birthDateController.text = formattedDate;
+    });
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = await _registerUser(
+        name: _nameController.text.trim(),
+        surname: _surnameController.text.trim(),
+        birthDate: _birthDateController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("No se pudo registrar el usuario."),
+          ),
+        );
+        return;
+      }
+
+      UserSession.currentUser = user;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Usuario registrado correctamente."),
+        ),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(userName: user.name),
+        ),
+        (route) => false,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "No se pudo conectar con el servidor. Intentá nuevamente.",
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<User?> _registerUser({
+    required String name,
+    required String surname,
+    required String birthDate,
+    required String email,
+    required String password,
+  }) async {
+    final url = Uri.parse("http://10.0.2.2:8080/register");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "name": name,
+        "surname": surname,
+        "birthDate": birthDate,
+        "email": email,
+        "password": password,
+      }),
+    );
+
+    if (response.statusCode != 200 || response.body.isEmpty) {
+      return null;
+    }
+
+    final decodedBody = jsonDecode(response.body);
+
+    if (decodedBody is! Map<String, dynamic>) {
+      return null;
+    }
+
+    return User.fromJson(decodedBody);
+  }
+
+  String? _validateRequiredField(String? value, String fieldName) {
+    if (value == null || value.trim().isEmpty) {
+      return "Ingresá $fieldName";
+    }
+
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? "";
+
+    if (email.isEmpty) {
+      return "Ingresá tu correo electrónico";
+    }
+
+    final emailExpression = RegExp(
+      r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    );
+
+    if (!emailExpression.hasMatch(email)) {
+      return "Ingresá un correo válido";
+    }
+
+    return null;
+  }
+
+  String? _validateBirthDate(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "Seleccioná tu fecha de nacimiento";
+    }
+
+    final date = DateTime.tryParse(value.trim());
+
+    if (date == null) {
+      return "La fecha no es válida";
+    }
+
+    if (date.isAfter(DateTime.now())) {
+      return "La fecha no puede ser futura";
+    }
+
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Ingresá una contraseña";
+    }
+
+    if (value.length < 6) {
+      return "La contraseña debe tener al menos 6 caracteres";
+    }
+
+    return null;
+  }
+
+  void _openLogin() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LoginScreen(),
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration({
+    required String label,
+    required IconData icon,
+    String? hint,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon),
+      suffixIcon: suffixIcon,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: AppColors.primary,
+          width: 1.5,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: AppColors.primary,
+          width: 2,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(
+      body: SafeArea(
         child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.only(
-              left: 20.0,
-              right: 20.0,
-              top: 40,
-              bottom: 40,
-            ),
+          padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+          child: Form(
+            key: _formKey,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset("assets/images/logo.png", width: 125, height: 125),
+                Image.asset(
+                  "assets/images/logo.png",
+                  width: 125,
+                  height: 125,
+                ),
+
                 Text(
                   "¡Bienvenido!",
                   style: TextStyle(
@@ -44,230 +290,157 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     color: AppColors.logoColor,
                   ),
                 ),
+
+                const SizedBox(height: 4),
+
                 Text(
-                  "Complete los campos",
-                  style: TextStyle(fontSize: 20, color: Colors.grey.shade600),
-                ),
-
-                SizedBox(height: 30),
-
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    label: Text(
-                      "Nombre",
-                      style: TextStyle(color: AppColors.accent),
-                    ),
-                    hintText: "Introduzca su nombre",
-                    hintStyle: TextStyle(color: AppColors.accent),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
+                  "Completá tus datos para crear una cuenta",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    color: Colors.grey.shade600,
                   ),
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 32),
 
-                TextField(
-                  controller: surnameController,
-                  decoration: InputDecoration(
-                    label: Text(
-                      "Apellido",
-                      style: TextStyle(color: AppColors.accent),
-                    ),
-                    hintText: "Introduzca su apellido",
-                    hintStyle: TextStyle(color: AppColors.accent),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
+                TextFormField(
+                  controller: _nameController,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  decoration: _buildInputDecoration(
+                    label: "Nombre",
+                    hint: "Ingresá tu nombre",
+                    icon: Icons.person_outline,
                   ),
+                  validator: (value) {
+                    return _validateRequiredField(value, "tu nombre");
+                  },
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                TextField(
-                  controller: emailController,
-                  decoration: InputDecoration(
-                    label: Text(
-                      "Email",
-                      style: TextStyle(color: AppColors.accent),
-                    ),
-                    hintText: "Introduzca su correo",
-                    hintStyle: TextStyle(color: AppColors.accent),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
+                TextFormField(
+                  controller: _surnameController,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  decoration: _buildInputDecoration(
+                    label: "Apellido",
+                    hint: "Ingresá tu apellido",
+                    icon: Icons.badge_outlined,
                   ),
+                  validator: (value) {
+                    return _validateRequiredField(value, "tu apellido");
+                  },
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                TextField(
-                  decoration: InputDecoration(
-                    label: Text(
-                      "Fecha de nacimiento",
-                      style: TextStyle(color: AppColors.accent),
-                    ),
-                    hintText: "Seleccione su fecha de nacimiento",
-                    hintStyle: TextStyle(color: AppColors.accent),
-                    prefixIcon: Icon(Icons.calendar_today),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
+                  decoration: _buildInputDecoration(
+                    label: "Email",
+                    hint: "tu@email.com",
+                    icon: Icons.email_outlined,
                   ),
-                  controller: birthDateController,
+                  validator: _validateEmail,
+                ),
+
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _birthDateController,
                   readOnly: true,
                   onTap: _selectDate,
+                  decoration: _buildInputDecoration(
+                    label: "Fecha de nacimiento",
+                    hint: "AAAA-MM-DD",
+                    icon: Icons.calendar_today_outlined,
+                  ),
+                  validator: _validateBirthDate,
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    label: Text(
-                      "Contraseña",
-                      style: TextStyle(color: AppColors.accent),
-                    ),
-                    hintText: "Introduzca su contraseña",
-                    hintStyle: TextStyle(color: AppColors.accent),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) {
+                    if (!_isLoading) {
+                      _register();
+                    }
+                  },
+                  decoration: _buildInputDecoration(
+                    label: "Contraseña",
+                    hint: "Mínimo 6 caracteres",
+                    icon: Icons.lock_outline,
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
                       ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
                   ),
+                  validator: _validatePassword,
                 ),
 
-                SizedBox(height: 30),
+                const SizedBox(height: 28),
 
-                ElevatedButton(
-                  onPressed: () async {
-                    final name = nameController.text;
-                    final surname = surnameController.text;
-                    final birthDate = birthDateController.text;
-                    final email = emailController.text;
-                    final password = passwordController.text;
-
-                    if (name.isEmpty || surname.isEmpty || birthDate.isEmpty || email.isEmpty || password.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Complete todos los campos")),
-                      );
-                      return;
-                    }
-
-                    final userData = await registrarUsuario(
-                      name,
-                      surname,
-                      birthDate,
-                      email,
-                      password,
-                    );
-
-                    if (userData != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Usuario registrado!")),
-                      );
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => HomeScreen(
-                            userName: userData['name'],   // ← NOMBRE REAL DEVUELTO POR BACKEND
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _register,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            "Registrarme",
+                            style: TextStyle(color: Colors.white),
                           ),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error al registrar")),
-                      );
-                    }
-
-                  },
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: Size(250, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    backgroundColor: AppColors.primary,
-                  ),
-                  child: Text(
-                    "Registrarme",
-                    style: TextStyle(color: Colors.white),
                   ),
                 ),
 
-                SizedBox(height: 15),
+                const SizedBox(height: 14),
 
-                OutlinedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => LoginScreen()),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: Size(250, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _openLogin,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary, width: 2),
-                  ),
-                  child: Text(
-                    "Tengo una cuenta",
-                    style: TextStyle(color: AppColors.primary),
+                    child: const Text("Tengo una cuenta"),
                   ),
                 ),
               ],
@@ -277,53 +450,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-
-  Future<void> _selectDate() async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      helpText: "Seleccione su fecha de nacimiento",
-    );
-
-    setState(() {
-      birthDateController.text = picked.toString().split(" ")[0];
-    });
-    }
-
-  Future<Map<String, dynamic>?> registrarUsuario(
-      String name,
-      String surname,
-      String birthDate,
-      String email,
-      String password,
-    ) async {
-
-    final url = Uri.parse("http://10.0.2.2:8080/register");
-
-    final body = jsonEncode({
-      "name": name,
-      "surname": surname,
-      "birthDate": birthDate,
-      "email": email,
-      "password": password,
-    });
-
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: body,
-    );
-
-    print("Status: ${response.statusCode}");
-    print("Body: ${response.body}");
-
-    if (response.statusCode == 200 && response.body.isNotEmpty) {
-      return jsonDecode(response.body);   // ← DEVUELVE EL USUARIO COMPLETO
-    }
-
-    return null;  // Error al registrar
-  }
-
 }

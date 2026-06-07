@@ -1,193 +1,136 @@
 import 'package:flutter/material.dart';
 import 'package:nutricam_proyect/core/app_colors.dart';
-import 'package:nutricam_proyect/screens/calendar_screen.dart';
-import 'package:nutricam_proyect/screens/professional_list_screen.dart';
-import 'package:nutricam_proyect/screens/profile_screen.dart';
-import 'package:nutricam_proyect/screens/scan_plate_screen.dart';
+import 'package:nutricam_proyect/screens/meal_records_screen.dart';
+import 'package:nutricam_proyect/widgets/app_bottom_navigation.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   final String userName;
-  const HomeScreen({super.key, required this.userName});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
+  const HomeScreen({
+    super.key,
+    required this.userName,
+  });
 
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    if (index == 4) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ProfileScreen(userName: widget.userName),
-        ),
-      );
-    } else if (index == 2) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              ProfessionalListScreen(userName: widget.userName),
-        ),
-      );
-    } else if (index == 1) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ScanPlateScreen(userName: widget.userName),
-        ),
-      );
-    } else if (index == 3) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CalendarScreen(userName: widget.userName),
-        ),
-      );
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
+  void _openMealRecords(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MealRecordsScreen(userName: userName),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(backgroundColor: AppColors.background),
       backgroundColor: AppColors.background,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: AppColors.secondary,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey.shade600,
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt),
-            label: "Escanear",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.medical_services),
-            label: "Profesionales",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: "Calendario",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: "Perfil",
-          ),
-        ],
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        automaticallyImplyLeading: false,
+      ),
+      bottomNavigationBar: AppBottomNavigation(
+        currentIndex: 0,
+        userName: userName,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Saludo
-                Text(
-                  "¡Hola, ${widget.userName}! 👋",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "¡Hola, $userName! 👋",
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
-                SizedBox(height: 40),
+              ),
 
-                // Objetivo diario
-                Text(
-                  "Tu objetivo diario",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  "1,250 / 2,000 kcal",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 30),
+              const SizedBox(height: 40),
 
-                // Recomendación
-                Text(
-                  "Recomendación de Hoy",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              const Text(
+                "Tu objetivo diario",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
-                SizedBox(height: 10),
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary,
-                    borderRadius: BorderRadius.circular(20),
+              ),
+
+              const SizedBox(height: 8),
+
+              const Text(
+                "1.250 / 2.000 kcal",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              const Text(
+                "Recomendación de hoy",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  "Estás alcanzando muy bien tu objetivo. "
+                  "Te recomendamos una ensalada con proteína para la cena. "
+                  "¡Seguí así! 💪",
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.6,
                   ),
-                  child: Text(
-                    "Estás alcanzando muy bien tu objetivo. Te recomendamos una ensalada con proteína para la cena. ¡Sigue así! 💪",
-                    style: TextStyle(fontSize: 15, height: 1.6),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              const Text(
+                "Registro de comidas",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _openMealRecords(context),
+                  icon: Icon(
+                    Icons.restaurant_menu,
+                    color: AppColors.backgroundComponent,
+                  ),
+                  label: Text(
+                    "Ir a mis registros",
+                    style: TextStyle(
+                      color: AppColors.backgroundComponent,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
-                SizedBox(height: 30),
-
-                // Botones de acción
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ScanPlateScreen(userName: widget.userName),
-                            ),
-                          );
-                        },
-                        icon: Icon(
-                          Icons.camera_alt,
-                          color: AppColors.backgroundComponent,
-                        ),
-                        label: Text(
-                          "Escanear Plato",
-                          style: TextStyle(
-                            color: AppColors.backgroundComponent,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 15),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: Icon(
-                          Icons.calendar_today,
-                          color: AppColors.backgroundComponent,
-                        ),
-                        label: Text(
-                          "Ver Calendario",
-                          style: TextStyle(
-                            color: AppColors.backgroundComponent,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

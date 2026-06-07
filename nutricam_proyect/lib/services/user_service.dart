@@ -1,6 +1,8 @@
+//nutricam_proyect/lib/services/user_service.dart
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:nutricam_proyect/components/user.dart';
+import 'package:nutricam_proyect/models/user.dart';
 
 class UserService {
   static const String baseUrl = "http://10.0.2.2:8080"; // Android emulator

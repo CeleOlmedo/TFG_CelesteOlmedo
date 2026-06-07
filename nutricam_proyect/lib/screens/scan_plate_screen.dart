@@ -1,139 +1,260 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:nutricam_proyect/core/app_colors.dart';
-import 'package:nutricam_proyect/screens/calendar_screen.dart';
-import 'dart:io';
-
-import 'package:nutricam_proyect/screens/home_screen.dart';
-import 'package:nutricam_proyect/screens/professional_list_screen.dart';
-import 'package:nutricam_proyect/screens/profile_screen.dart';
 
 class ScanPlateScreen extends StatefulWidget {
   final String userName;
-  const ScanPlateScreen({super.key, required this.userName});
+
+  const ScanPlateScreen({
+    super.key,
+    required this.userName,
+  });
 
   @override
   State<ScanPlateScreen> createState() => _ScanPlateScreenState();
 }
 
 class _ScanPlateScreenState extends State<ScanPlateScreen> {
-  File? _image;
+  final ImagePicker _imagePicker = ImagePicker();
+
+  File? _selectedImage;
+  bool _isAnalyzing = false;
 
   Future<void> _takePhoto() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera);
+    final pickedImage = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
 
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-      // Aquí podrías enviar la imagen al backend o procesarla
+    if (pickedImage == null) {
+      return;
     }
+
+    setState(() {
+      _selectedImage = File(pickedImage.path);
+    });
   }
 
-  int _selectedIndex = 1;
+  Future<void> _selectFromGallery() async {
+    final pickedImage = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
 
-  void _onItemTapped(int index) {
-    if (index == 4) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ProfileScreen(userName: widget.userName,)),
-      );
-    } else if (index == 2) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ProfessionalListScreen(userName: widget.userName)),
-      );
-    } else if (index == 0){
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen(userName: widget.userName)),
-      );
-    } else if (index == 3){
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => CalendarScreen(userName: widget.userName)),
-      );
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
+    if (pickedImage == null) {
+      return;
     }
+
+    setState(() {
+      _selectedImage = File(pickedImage.path);
+    });
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImage = null;
+    });
+  }
+
+  Future<void> _analyzeImage() async {
+    if (_selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Primero seleccioná una imagen del plato."),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAnalyzing = true;
+    });
+
+    // Próximamente se enviará la imagen al backend
+    // para realizar el reconocimiento de alimentos.
+
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isAnalyzing = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "La imagen está lista. El análisis se implementará próximamente.",
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.lightBlue[50],
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Escanea tu plato'),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: const Text("Escanear plato"),
+        backgroundColor: AppColors.background,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: AppColors.secondary,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey.shade600,
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt),
-            label: "Escanear",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.medical_services),
-            label: "Profesionales",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: "Calendario",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: "Perfil",
-          ),
-        ],
-      ),
-      body: Center(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Text(
+              "Registrá tu comida con una imagen",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              'Coloca el plato en el centro del marco',
-              style: TextStyle(fontSize: 18),
+              "Tomá una fotografía clara del plato o seleccioná una imagen "
+              "desde la galería.",
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Colors.grey.shade700,
+              ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 24),
+
             Container(
-              width: 250,
-              height: 250,
+              height: 300,
               decoration: BoxDecoration(
-                color: Colors.teal[100],
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.secondary,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.grey.shade300,
+                ),
               ),
-              child: Icon(Icons.camera_alt, size: 80, color: Colors.white),
+              clipBehavior: Clip.antiAlias,
+              child: _selectedImage == null
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.camera_alt_outlined,
+                          size: 70,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 14),
+                        Text(
+                          "Todavía no seleccionaste una imagen",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(
+                          _selectedImage!,
+                          fit: BoxFit.cover,
+                        ),
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: IconButton(
+                            onPressed: _removeImage,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black54,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
-            SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: _takePhoto,
-              icon: Icon(Icons.camera),
-              label: Text('Tomar Foto'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _takePhoto,
+                    icon: Icon(
+                      Icons.camera_alt_outlined,
+                      color: AppColors.backgroundComponent,
+                    ),
+                    label: Text(
+                      "Cámara",
+                      style: TextStyle(
+                        color: AppColors.backgroundComponent,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _selectFromGallery,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text("Galería"),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _selectedImage == null || _isAnalyzing
+                    ? null
+                    : _analyzeImage,
+                icon: _isAnalyzing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(
+                        Icons.auto_awesome,
+                        color: AppColors.backgroundComponent,
+                      ),
+                label: Text(
+                  _isAnalyzing ? "Analizando..." : "Analizar imagen",
+                  style: TextStyle(
+                    color: AppColors.backgroundComponent,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
             ),
-            if (_image != null) ...[
-              SizedBox(height: 30),
-              Text('Foto tomada:', style: TextStyle(fontSize: 16)),
-              SizedBox(height: 10),
-              Image.file(_image!, width: 200),
-            ],
           ],
         ),
       ),
