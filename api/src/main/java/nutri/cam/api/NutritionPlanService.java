@@ -2,7 +2,6 @@ package nutri.cam.api;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,17 +32,22 @@ public class NutritionPlanService {
     private final UserRepository userRepository;
     private final RecommendedPlateRepository
         recommendedPlateRepository;
+    private final NutritionPlanMealRepository
+        nutritionPlanMealRepository;
 
     public NutritionPlanService(
         NutritionPlanRepository nutritionPlanRepository,
         UserRepository userRepository,
-        RecommendedPlateRepository recommendedPlateRepository
+        RecommendedPlateRepository recommendedPlateRepository,
+        NutritionPlanMealRepository nutritionPlanMealRepository
     ) {
         this.nutritionPlanRepository =
             nutritionPlanRepository;
         this.userRepository = userRepository;
         this.recommendedPlateRepository =
             recommendedPlateRepository;
+        this.nutritionPlanMealRepository =
+            nutritionPlanMealRepository;
     }
 
     @Transactional
@@ -165,6 +169,199 @@ public class NutritionPlanService {
                 );
 
         return toResponse(plan);
+    }
+
+    @Transactional
+    public NutritionPlanResponse replacePlanMeal(
+        Integer userId,
+        Integer mealId
+    ) {
+        User user = userRepository
+            .findById(userId)
+            .orElseThrow(
+                () -> new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "El usuario no existe."
+                )
+            );
+
+        validateUserObjective(user);
+
+        NutritionPlan activePlan =
+            nutritionPlanRepository
+                .findFirstByUserIdAndStatusOrderByCreatedAtDesc(
+                    userId,
+                    NutritionPlanStatus.ACTIVE
+                )
+                .orElseThrow(
+                    () -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "El usuario no tiene un plan activo."
+                    )
+                );
+
+        NutritionPlanMeal planMeal =
+            nutritionPlanMealRepository
+                .findById(mealId)
+                .orElseThrow(
+                    () -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "La comida seleccionada no existe."
+                    )
+                );
+
+        validateMealBelongsToActivePlan(
+            activePlan,
+            planMeal
+        );
+
+        RecommendedPlate replacementPlate =
+            selectReplacementPlate(
+                activePlan,
+                planMeal
+            );
+
+        planMeal.setRecommendedPlate(
+            replacementPlate
+        );
+
+        planMeal.setReason(
+            buildSelectionReason(
+                replacementPlate,
+                planMeal.getMealType(),
+                activePlan.getUserObjective()
+            )
+        );
+
+        resetRecommendationForDay(
+            planMeal.getNutritionPlanDay()
+        );
+
+        nutritionPlanMealRepository.save(planMeal);
+
+        return toResponse(activePlan);
+    }
+
+    private void validateMealBelongsToActivePlan(
+        NutritionPlan activePlan,
+        NutritionPlanMeal planMeal
+    ) {
+        NutritionPlanDay planDay =
+            planMeal.getNutritionPlanDay();
+
+        if (
+            planDay == null
+            || planDay.getNutritionPlan() == null
+            || !activePlan.getId().equals(
+                planDay.getNutritionPlan().getId()
+            )
+        ) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "La comida seleccionada no pertenece "
+                    + "al plan activo del usuario."
+            );
+        }
+    }
+
+    private RecommendedPlate selectReplacementPlate(
+        NutritionPlan activePlan,
+        NutritionPlanMeal currentMeal
+    ) {
+        List<RecommendedPlate> candidates =
+            recommendedPlateRepository
+                .findByActiveTrueOrderByNameAsc()
+                .stream()
+                .filter(
+                    plate ->
+                        plate.getAllowedMealTypes() != null
+                        && plate.getAllowedMealTypes()
+                            .contains(
+                                currentMeal.getMealType()
+                            )
+                )
+                .filter(
+                    plate ->
+                        !plate.getId().equals(
+                            currentMeal
+                                .getRecommendedPlate()
+                                .getId()
+                        )
+                )
+                .toList();
+
+        if (candidates.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "No existe otro plato activo compatible "
+                    + "con "
+                    + formatMealType(
+                        currentMeal.getMealType()
+                    )
+                    + "."
+            );
+        }
+
+        Map<Integer, Integer> plateUsageCount =
+            calculatePlateUsage(activePlan);
+
+        return candidates
+            .stream()
+            .min(
+                Comparator
+                    .comparingInt(
+                        (RecommendedPlate plate) ->
+                            plateUsageCount
+                                .getOrDefault(
+                                    plate.getId(),
+                                    0
+                                )
+                    )
+                    .thenComparing(
+                        RecommendedPlate::getName,
+                        String.CASE_INSENSITIVE_ORDER
+                    )
+            )
+            .orElseThrow(
+                () -> new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se pudo seleccionar un plato "
+                        + "alternativo."
+                )
+            );
+    }
+
+    private Map<Integer, Integer> calculatePlateUsage(
+        NutritionPlan activePlan
+    ) {
+        Map<Integer, Integer> plateUsageCount =
+            new HashMap<>();
+
+        for (NutritionPlanDay day : activePlan.getDays()) {
+            for (NutritionPlanMeal meal : day.getMeals()) {
+                Integer plateId =
+                    meal.getRecommendedPlate().getId();
+
+                plateUsageCount.merge(
+                    plateId,
+                    1,
+                    Integer::sum
+                );
+            }
+        }
+
+        return plateUsageCount;
+    }
+
+    private void resetRecommendationForDay(
+        NutritionPlanDay planDay
+    ) {
+        planDay.setDailyRecommendation(null);
+        planDay.setRecommendationStatus(
+            DailyRecommendationStatus.PENDING
+        );
+        planDay.setRecommendationMethod(null);
+        planDay.setRecommendationGeneratedAt(null);
     }
 
     private void validateUserObjective(User user) {

@@ -29,7 +29,8 @@ public class SecurityConfig {
                     "/meals/**",
                     "/recommended-plates/**",
                     "/nutrition-plans/**",
-                    "/error"
+                    "/error",
+                    "/meal-images/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             );

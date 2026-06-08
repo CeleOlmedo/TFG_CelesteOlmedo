@@ -163,6 +163,55 @@ class NutritionPlanService {
     }
   }
 
+
+  static Future<NutritionPlanResult> replacePlanMeal(
+    int userId,
+    int mealId,
+  ) async {
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}'
+      '/nutrition-plans/active/user/$userId'
+      '/meals/$mealId/replace',
+    );
+
+    try {
+      final response = await http
+          .put(url)
+          .timeout(_planRequestTimeout);
+
+      return _handlePlanResponse(
+        response,
+        operation: _PlanOperation.replace,
+      );
+    } on TimeoutException {
+      return const NutritionPlanResult(
+        status: NutritionPlanStatusResult.timeout,
+        message:
+            'El reemplazo del plato tardó demasiado.',
+      );
+    } on SocketException {
+      return const NutritionPlanResult(
+        status:
+            NutritionPlanStatusResult.connectionError,
+        message:
+            'No se pudo establecer conexión con el servidor.',
+      );
+    } on http.ClientException {
+      return const NutritionPlanResult(
+        status:
+            NutritionPlanStatusResult.connectionError,
+        message:
+            'No se pudo establecer conexión con el servidor.',
+      );
+    } catch (_) {
+      return const NutritionPlanResult(
+        status: NutritionPlanStatusResult.invalidResponse,
+        message:
+            'La respuesta del servidor no tiene un formato válido.',
+      );
+    }
+  }
+
   static Future<DailyRecommendationResult>
       generateOrGetDailyRecommendation(
     int userId,
@@ -247,6 +296,17 @@ class NutritionPlanService {
         return _parseSuccessfulPlanResponse(response);
 
       case 400:
+        if (operation == _PlanOperation.replace) {
+          return NutritionPlanResult(
+            status: NutritionPlanStatusResult.serverError,
+            message: _extractServerMessage(
+              response,
+              fallback:
+                  'No se pudo reemplazar el plato seleccionado.',
+            ),
+          );
+        }
+
         return const NutritionPlanResult(
           status: NutritionPlanStatusResult.objectiveRequired,
           message:
@@ -261,6 +321,17 @@ class NutritionPlanService {
               response,
               fallback:
                   'Todavía no existe un plan activo.',
+            ),
+          );
+        }
+
+        if (operation == _PlanOperation.replace) {
+          return NutritionPlanResult(
+            status: NutritionPlanStatusResult.notFound,
+            message: _extractServerMessage(
+              response,
+              fallback:
+                  'No se encontró el plan o el plato seleccionado.',
             ),
           );
         }
@@ -379,4 +450,5 @@ class NutritionPlanService {
 enum _PlanOperation {
   get,
   generate,
+  replace,
 }

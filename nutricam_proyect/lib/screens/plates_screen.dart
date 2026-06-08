@@ -21,6 +21,7 @@ class _PlatesScreenState extends State<PlatesScreen> {
   bool _isLoadingPlan = true;
   bool _isGeneratingPlan = false;
   bool _isGeneratingRecommendation = false;
+  final Set<int> _replacingMealIds = <int>{};
 
   String? _recommendationErrorMessage;
   String? _planErrorMessage;
@@ -160,6 +161,133 @@ class _PlatesScreenState extends State<PlatesScreen> {
           return;
       }
     }
+
+  Future<void> _confirmReplaceMeal(
+    NutritionPlanMeal meal, {
+    bool closeDetailsAfterSuccess = false,
+    bool closeWeeklyPlanAfterSuccess = false,
+  }) async {
+    if (_replacingMealIds.contains(meal.id)) {
+      return;
+    }
+
+    final shouldReplace = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cambiar plato'),
+          content: Text(
+            '¿Querés reemplazar "${meal.plateName}" por '
+            'otra opción para ${_formatMealType(meal.mealType).toLowerCase()}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Cambiar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldReplace == true && mounted) {
+      await _replaceMeal(
+        meal,
+        closeDetailsAfterSuccess:
+            closeDetailsAfterSuccess,
+        closeWeeklyPlanAfterSuccess:
+            closeWeeklyPlanAfterSuccess,
+      );
+    }
+  }
+
+  Future<void> _replaceMeal(
+    NutritionPlanMeal meal, {
+    bool closeDetailsAfterSuccess = false,
+    bool closeWeeklyPlanAfterSuccess = false,
+  }) async {
+    final currentUser = UserSession.currentUser;
+
+    if (currentUser?.id == null ||
+        _replacingMealIds.contains(meal.id)) {
+      return;
+    }
+
+    setState(() {
+      _replacingMealIds.add(meal.id);
+      _planErrorMessage = null;
+    });
+
+    final result = await NutritionPlanService.replacePlanMeal(
+      currentUser!.id!,
+      meal.id,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _replacingMealIds.remove(meal.id);
+    });
+
+    switch (result.status) {
+      case NutritionPlanStatusResult.success:
+        setState(() {
+          _activePlan = result.plan;
+          _planErrorMessage = null;
+          _recommendationErrorMessage = null;
+        });
+
+        if (closeDetailsAfterSuccess &&
+            Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+
+        if (closeWeeklyPlanAfterSuccess &&
+            Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'El plato fue reemplazado correctamente.',
+            ),
+          ),
+        );
+        return;
+
+      case NutritionPlanStatusResult.notFound:
+      case NutritionPlanStatusResult.userNotFound:
+      case NutritionPlanStatusResult.objectiveRequired:
+      case NutritionPlanStatusResult.invalidResponse:
+      case NutritionPlanStatusResult.serverError:
+      case NutritionPlanStatusResult.connectionError:
+      case NutritionPlanStatusResult.timeout:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message ??
+                  'No se pudo reemplazar el plato.',
+            ),
+          ),
+        );
+        return;
+    }
+  }
 
   Future<void> _generatePlan() async {
     final currentUser = UserSession.currentUser;
@@ -880,11 +1008,16 @@ class _PlatesScreenState extends State<PlatesScreen> {
   }
 
   Widget _buildPlanMealRow(
-    NutritionPlanMeal meal,
-  ) {
+    NutritionPlanMeal meal, {
+    bool closeWeeklyPlanAfterSuccess = false,
+  }) {
     return InkWell(
       onTap: () {
-        _showPlanMealDetails(meal);
+        _showPlanMealDetails(
+          meal,
+          closeWeeklyPlanAfterSuccess:
+              closeWeeklyPlanAfterSuccess,
+        );
       },
       borderRadius: BorderRadius.circular(14),
       child: Container(
@@ -946,10 +1079,30 @@ class _PlatesScreenState extends State<PlatesScreen> {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey.shade400,
-            ),
+            if (_replacingMealIds.contains(meal.id))
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
+              )
+            else
+              IconButton(
+                tooltip: 'Cambiar plato',
+                onPressed: () {
+                  _confirmReplaceMeal(
+                    meal,
+                    closeWeeklyPlanAfterSuccess:
+                        closeWeeklyPlanAfterSuccess,
+                  );
+                },
+                icon: const Icon(
+                  Icons.swap_horiz,
+                  color: AppColors.primary,
+                ),
+              ),
           ],
         ),
       ),
@@ -1024,6 +1177,7 @@ class _PlatesScreenState extends State<PlatesScreen> {
                 ),
                 child: _buildPlanMealRow(
                   day.meals[index],
+                  closeWeeklyPlanAfterSuccess: true,
                 ),
               );
             },
@@ -1076,8 +1230,9 @@ class _PlatesScreenState extends State<PlatesScreen> {
   }
 
   void _showPlanMealDetails(
-    NutritionPlanMeal meal,
-  ) {
+    NutritionPlanMeal meal, {
+    bool closeWeeklyPlanAfterSuccess = false,
+  }) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1201,6 +1356,32 @@ class _PlatesScreenState extends State<PlatesScreen> {
                   meal.foodGroups
                       .map(_formatFoodGroup)
                       .toList(),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _replacingMealIds
+                            .contains(meal.id)
+                        ? null
+                        : () {
+                            _confirmReplaceMeal(
+                              meal,
+                              closeDetailsAfterSuccess: true,
+                              closeWeeklyPlanAfterSuccess:
+                                  closeWeeklyPlanAfterSuccess,
+                            );
+                          },
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('Cambiar plato'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
