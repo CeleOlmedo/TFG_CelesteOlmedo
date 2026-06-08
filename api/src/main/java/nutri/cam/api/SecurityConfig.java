@@ -16,21 +16,24 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http)
+            throws Exception {
+
         http
-            .csrf(csrf -> csrf.disable()) 
+            .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/register",
                     "/login",
                     "/update/**",
                     "/meals/**",
-                    "/recommended-plates/**"
+                    "/recommended-plates/**",
+                    "/nutrition-plans/**",
+                    "/error"
                 ).permitAll()
-                .anyRequest().authenticated() 
+                .anyRequest().authenticated()
             );
+
         return http.build();
     }
-    
 }
-

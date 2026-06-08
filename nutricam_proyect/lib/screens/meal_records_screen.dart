@@ -672,6 +672,8 @@ class _ManualMealFormState extends State<_ManualMealForm> {
   String _selectedMealType = 'Desayuno';
   bool _isSaving = false;
 
+  final Set<String> _selectedFoodGroups = {};
+
   final List<String> _mealTypes = [
     'Desayuno',
     'Almuerzo',
@@ -679,6 +681,22 @@ class _ManualMealFormState extends State<_ManualMealForm> {
     'Cena',
     'Snack',
   ];
+
+  final Map<String, String> _foodGroupLabels = {
+    'FRUTAS': 'Frutas',
+    'VERDURAS': 'Verduras',
+    'LEGUMBRES': 'Legumbres',
+    'CEREALES_Y_DERIVADOS': 'Cereales y derivados',
+    'PAPA_BATATA_MANDIOCA': 'Papa, batata y mandioca',
+    'LECHE_YOGUR_Y_QUESO': 'Leche, yogur y queso',
+    'CARNES': 'Carnes',
+    'PESCADOS': 'Pescados',
+    'HUEVOS': 'Huevos',
+    'FRUTOS_SECOS_Y_SEMILLAS':
+        'Frutos secos y semillas',
+    'ACEITES_Y_GRASAS': 'Aceites y grasas',
+    'AZUCARES_Y_DULCES': 'Azúcares y dulces',
+  };
 
   @override
   void dispose() {
@@ -697,7 +715,9 @@ class _ManualMealFormState extends State<_ManualMealForm> {
     if (currentUser?.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se encontró el usuario logueado.'),
+          content: Text(
+            'No se encontró el usuario logueado.',
+          ),
         ),
       );
       return;
@@ -712,6 +732,8 @@ class _ManualMealFormState extends State<_ManualMealForm> {
       mealName: _mealNameController.text.trim(),
       mealType: _selectedMealType,
       quantity: _quantityController.text.trim(),
+      registrationSource: 'MANUAL',
+      foodGroups: _selectedFoodGroups.toList(),
     );
 
     final success = await MealService.createMeal(meal);
@@ -729,7 +751,9 @@ class _ManualMealFormState extends State<_ManualMealForm> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo registrar la comida.'),
+          content: Text(
+            'No se pudo registrar la comida.',
+          ),
         ),
       );
     }
@@ -737,9 +761,14 @@ class _ManualMealFormState extends State<_ManualMealForm> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardHeight =
+        MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
+      constraints: BoxConstraints(
+        maxHeight:
+            MediaQuery.of(context).size.height * 0.90,
+      ),
       padding: EdgeInsets.fromLTRB(
         20,
         20,
@@ -754,116 +783,217 @@ class _ManualMealFormState extends State<_ManualMealForm> {
       ),
       child: SafeArea(
         top: false,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Registrar comida',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedMealType,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo de comida',
-                  border: OutlineInputBorder(),
-                ),
-                items: _mealTypes
-                    .map(
-                      (type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedMealType = value;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _mealNameController,
-                decoration: const InputDecoration(
-                  labelText: '¿Qué comiste?',
-                  hintText: 'Ej.: manzana, ensalada, arroz con pollo',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Ingresá el nombre de la comida';
-                  }
-
-                  return null;
-                },
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _quantityController,
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad o porción',
-                  hintText: 'Ej.: 1 unidad, 200 g, 1 plato',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Ingresá la cantidad consumida';
-                  }
-
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveMeal,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 15,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          'Guardar comida',
-                          style: TextStyle(
-                            color: AppColors.backgroundComponent,
-                          ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Registrar comida',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () {
+                              Navigator.pop(context);
+                            },
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedMealType,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de comida',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _mealTypes
+                      .map(
+                        (type) => DropdownMenuItem(
+                          value: type,
+                          child: Text(type),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() {
+                              _selectedMealType = value;
+                            });
+                          }
+                        },
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _mealNameController,
+                  enabled: !_isSaving,
+                  textCapitalization:
+                      TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: '¿Qué comiste?',
+                    hintText:
+                        'Ej.: ensalada, arroz con pollo',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null ||
+                        value.trim().isEmpty) {
+                      return 'Ingresá el nombre de la comida';
+                    }
+
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _quantityController,
+                  enabled: !_isSaving,
+                  decoration: const InputDecoration(
+                    labelText: 'Cantidad o porción',
+                    hintText:
+                        'Ej.: 1 unidad, 200 g, 1 plato',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null ||
+                        value.trim().isEmpty) {
+                      return 'Ingresá la cantidad consumida';
+                    }
+
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Grupos alimentarios presentes',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Seleccioná todos los grupos que formen parte de la comida.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FormField<Set<String>>(
+                  initialValue: _selectedFoodGroups,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Seleccioná al menos un grupo alimentario';
+                    }
+
+                    return null;
+                  },
+                  builder: (formFieldState) {
+                    return Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _foodGroupLabels.entries
+                              .map((entry) {
+                            final isSelected =
+                                _selectedFoodGroups
+                                    .contains(entry.key);
+
+                            return FilterChip(
+                              label: Text(entry.value),
+                              selected: isSelected,
+                              onSelected: _isSaving
+                                  ? null
+                                  : (selected) {
+                                      setState(() {
+                                        if (selected) {
+                                          _selectedFoodGroups
+                                              .add(entry.key);
+                                        } else {
+                                          _selectedFoodGroups
+                                              .remove(entry.key);
+                                        }
+                                      });
+
+                                      formFieldState.didChange(
+                                        Set<String>.from(
+                                          _selectedFoodGroups,
+                                        ),
+                                      );
+                                    },
+                            );
+                          }).toList(),
+                        ),
+                        if (formFieldState.hasError) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            formFieldState.errorText!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .error,
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed:
+                        _isSaving ? null : _saveMeal,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Guardar comida',
+                            style: TextStyle(
+                              color: AppColors
+                                  .backgroundComponent,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
