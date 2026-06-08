@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:nutricam_proyect/core/app_colors.dart';
 import 'package:nutricam_proyect/core/user_session.dart';
-import 'package:nutricam_proyect/models/user.dart';
 import 'package:nutricam_proyect/screens/home_screen.dart';
 import 'package:nutricam_proyect/screens/login_screen.dart';
+import 'package:nutricam_proyect/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -45,9 +42,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialDate: DateTime(today.year - 18),
       firstDate: DateTime(1920),
       lastDate: today,
-      helpText: "Seleccioná tu fecha de nacimiento",
-      cancelText: "Cancelar",
-      confirmText: "Aceptar",
+      helpText: 'Seleccioná tu fecha de nacimiento',
+      cancelText: 'Cancelar',
+      confirmText: 'Aceptar',
     );
 
     if (pickedDate == null || !mounted) {
@@ -55,9 +52,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final formattedDate =
-        "${pickedDate.year.toString().padLeft(4, '0')}-"
-        "${pickedDate.month.toString().padLeft(2, '0')}-"
-        "${pickedDate.day.toString().padLeft(2, '0')}";
+        '${pickedDate.year.toString().padLeft(4, '0')}-'
+        '${pickedDate.month.toString().padLeft(2, '0')}-'
+        '${pickedDate.day.toString().padLeft(2, '0')}';
 
     setState(() {
       _birthDateController.text = formattedDate;
@@ -76,7 +73,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final user = await _registerUser(
+      final result = await AuthService.register(
         name: _nameController.text.trim(),
         surname: _surnameController.text.trim(),
         birthDate: _birthDateController.text.trim(),
@@ -88,30 +85,76 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
 
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("No se pudo registrar el usuario."),
-          ),
-        );
-        return;
+      switch (result.status) {
+        case RegisterStatus.success:
+          final user = result.user;
+
+          if (user == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No se pudo recuperar la información del usuario.',
+                ),
+              ),
+            );
+            return;
+          }
+
+          UserSession.currentUser = user;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Usuario registrado correctamente.',
+              ),
+            ),
+          );
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(
+                userName: user.name,
+              ),
+            ),
+            (route) => false,
+          );
+
+          return;
+
+        case RegisterStatus.emailAlreadyExists:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Ya existe una cuenta registrada con ese correo.',
+              ),
+            ),
+          );
+          return;
+
+        case RegisterStatus.invalidRequest:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Revisá los datos ingresados. '
+                'La contraseña debe tener al menos 6 caracteres, '
+                'letras y números.',
+              ),
+            ),
+          );
+          return;
+
+        case RegisterStatus.serverError:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Ocurrió un error en el servidor. '
+                'Intentá nuevamente.',
+              ),
+            ),
+          );
+          return;
       }
-
-      UserSession.currentUser = user;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Usuario registrado correctamente."),
-        ),
-      );
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(userName: user.name),
-        ),
-        (route) => false,
-      );
     } catch (_) {
       if (!mounted) {
         return;
@@ -120,7 +163,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "No se pudo conectar con el servidor. Intentá nuevamente.",
+            'No se pudo conectar con el servidor. '
+            'Intentá nuevamente.',
           ),
         ),
       );
@@ -133,63 +177,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  Future<User?> _registerUser({
-    required String name,
-    required String surname,
-    required String birthDate,
-    required String email,
-    required String password,
-  }) async {
-    final url = Uri.parse("http://10.0.2.2:8080/register");
-
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        "name": name,
-        "surname": surname,
-        "birthDate": birthDate,
-        "email": email,
-        "password": password,
-      }),
-    );
-
-    if (response.statusCode != 200 || response.body.isEmpty) {
-      return null;
-    }
-
-    final decodedBody = jsonDecode(response.body);
-
-    if (decodedBody is! Map<String, dynamic>) {
-      return null;
-    }
-
-    return User.fromJson(decodedBody);
-  }
-
-  String? _validateRequiredField(String? value, String fieldName) {
+  String? _validateRequiredField(
+    String? value,
+    String fieldName,
+  ) {
     if (value == null || value.trim().isEmpty) {
-      return "Ingresá $fieldName";
+      return 'Ingresá $fieldName';
     }
 
     return null;
   }
 
   String? _validateEmail(String? value) {
-    final email = value?.trim() ?? "";
+    final email = value?.trim() ?? '';
 
     if (email.isEmpty) {
-      return "Ingresá tu correo electrónico";
+      return 'Ingresá tu correo electrónico';
     }
 
     final emailExpression = RegExp(
-      r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
     );
 
     if (!emailExpression.hasMatch(email)) {
-      return "Ingresá un correo válido";
+      return 'Ingresá un correo válido';
     }
 
     return null;
@@ -197,17 +208,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validateBirthDate(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return "Seleccioná tu fecha de nacimiento";
+      return 'Seleccioná tu fecha de nacimiento';
     }
 
     final date = DateTime.tryParse(value.trim());
 
     if (date == null) {
-      return "La fecha no es válida";
+      return 'La fecha no es válida';
     }
 
     if (date.isAfter(DateTime.now())) {
-      return "La fecha no puede ser futura";
+      return 'La fecha no puede ser futura';
     }
 
     return null;
@@ -215,11 +226,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
-      return "Ingresá una contraseña";
+      return 'Ingresá una contraseña';
     }
 
     if (value.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres";
+      return 'La contraseña debe tener al menos 6 caracteres';
+    }
+
+    final hasLetter = RegExp(r'[A-Za-z]').hasMatch(value);
+    final hasNumber = RegExp(r'[0-9]').hasMatch(value);
+
+    if (!hasLetter || !hasNumber) {
+      return 'La contraseña debe incluir letras y números';
     }
 
     return null;
@@ -250,14 +268,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
+        borderSide: const BorderSide(
           color: AppColors.primary,
           width: 1.5,
         ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
+        borderSide: const BorderSide(
           color: AppColors.primary,
           width: 2,
         ),
@@ -277,94 +295,87 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               children: [
                 Image.asset(
-                  "assets/images/logo.png",
+                  'assets/images/logo.png',
                   width: 125,
                   height: 125,
                 ),
-
-                Text(
-                  "¡Bienvenido!",
+                const Text(
+                  '¡Bienvenido!',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: AppColors.logoColor,
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 Text(
-                  "Completá tus datos para crear una cuenta",
+                  'Completá tus datos para crear una cuenta',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 17,
                     color: Colors.grey.shade600,
                   ),
                 ),
-
                 const SizedBox(height: 32),
-
                 TextFormField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
                   decoration: _buildInputDecoration(
-                    label: "Nombre",
-                    hint: "Ingresá tu nombre",
+                    label: 'Nombre',
+                    hint: 'Ingresá tu nombre',
                     icon: Icons.person_outline,
                   ),
                   validator: (value) {
-                    return _validateRequiredField(value, "tu nombre");
+                    return _validateRequiredField(
+                      value,
+                      'tu nombre',
+                    );
                   },
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _surnameController,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
                   decoration: _buildInputDecoration(
-                    label: "Apellido",
-                    hint: "Ingresá tu apellido",
+                    label: 'Apellido',
+                    hint: 'Ingresá tu apellido',
                     icon: Icons.badge_outlined,
                   ),
                   validator: (value) {
-                    return _validateRequiredField(value, "tu apellido");
+                    return _validateRequiredField(
+                      value,
+                      'tu apellido',
+                    );
                   },
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
                   decoration: _buildInputDecoration(
-                    label: "Email",
-                    hint: "tu@email.com",
+                    label: 'Email',
+                    hint: 'tu@email.com',
                     icon: Icons.email_outlined,
                   ),
                   validator: _validateEmail,
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _birthDateController,
                   readOnly: true,
                   onTap: _selectDate,
                   decoration: _buildInputDecoration(
-                    label: "Fecha de nacimiento",
-                    hint: "AAAA-MM-DD",
+                    label: 'Fecha de nacimiento',
+                    hint: 'AAAA-MM-DD',
                     icon: Icons.calendar_today_outlined,
                   ),
                   validator: _validateBirthDate,
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -375,8 +386,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     }
                   },
                   decoration: _buildInputDecoration(
-                    label: "Contraseña",
-                    hint: "Mínimo 6 caracteres",
+                    label: 'Contraseña',
+                    hint: 'Mínimo 6 caracteres, letras y números',
                     icon: Icons.lock_outline,
                     suffixIcon: IconButton(
                       onPressed: () {
@@ -393,9 +404,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: _validatePassword,
                 ),
-
                 const SizedBox(height: 28),
-
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -417,14 +426,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           )
                         : const Text(
-                            "Registrarme",
-                            style: TextStyle(color: Colors.white),
+                            'Registrarme',
+                            style: TextStyle(
+                              color: Colors.white,
+                            ),
                           ),
                   ),
                 ),
-
                 const SizedBox(height: 14),
-
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
@@ -432,7 +441,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(52),
                       foregroundColor: AppColors.primary,
-                      side: BorderSide(
+                      side: const BorderSide(
                         color: AppColors.primary,
                         width: 1.5,
                       ),
@@ -440,7 +449,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text("Tengo una cuenta"),
+                    child: const Text(
+                      'Tengo una cuenta',
+                    ),
                   ),
                 ),
               ],

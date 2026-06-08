@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
 
 @RestController
 @CrossOrigin("*")
@@ -21,19 +24,78 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public User register(@RequestBody User user) {
-        // Encriptar la contraseña antes de guardar
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepository.save(user);
+    public ResponseEntity<User> register(@RequestBody User user) {
+
+        String normalizedEmail = user.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .build();
+        }
+
+        String password = user.getPassword();
+
+        boolean validPassword =
+                password != null
+                && password.length() >= 6
+                && password.matches(".*[A-Za-z].*")
+                && password.matches(".*[0-9].*");
+
+        if (!validPassword) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .build();
+        }
+
+        user.setEmail(normalizedEmail);
+        user.setPassword(passwordEncoder.encode(password));
+
+        User savedUser = userRepository.save(user);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(savedUser);
     }
 
     @PostMapping("/login")
-    public User login(@RequestBody User user) {
-        User existingUser = userRepository.findByEmail(user.getEmail());
-        if (existingUser != null && passwordEncoder.matches(user.getPassword(), existingUser.getPassword())) {
-            return existingUser;
+    public ResponseEntity<User> login(@RequestBody User loginRequest) {
+
+        if (loginRequest.getEmail() == null
+                || loginRequest.getEmail().isBlank()
+                || loginRequest.getPassword() == null
+                || loginRequest.getPassword().isBlank()) {
+
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .build();
         }
-        return null;
+
+        String normalizedEmail = loginRequest
+                .getEmail()
+                .trim()
+                .toLowerCase();
+
+        User existingUser = userRepository.findByEmail(normalizedEmail);
+
+        if (existingUser == null) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .build();
+        }
+
+        boolean passwordMatches = passwordEncoder.matches(
+                loginRequest.getPassword(),
+                existingUser.getPassword()
+        );
+
+        if (!passwordMatches) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
+        return ResponseEntity.ok(existingUser);
     }
 
     @PutMapping("/update/{id}")

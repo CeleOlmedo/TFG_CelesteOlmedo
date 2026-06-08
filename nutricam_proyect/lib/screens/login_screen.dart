@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:nutricam_proyect/core/app_colors.dart';
 import 'package:nutricam_proyect/core/user_session.dart';
-import 'package:nutricam_proyect/models/user.dart';
 import 'package:nutricam_proyect/screens/home_screen.dart';
 import 'package:nutricam_proyect/screens/register_screen.dart';
+import 'package:nutricam_proyect/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,32 +40,83 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final user = await _loginUser(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final result = await AuthService.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
 
       if (!mounted) {
         return;
       }
 
-      if (user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HomeScreen(
-              userName: user.name,
-            ),
-          ),
-        );
-        return;
-      }
+      switch (result.status) {
+        case LoginStatus.success:
+          final user = result.user;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Email o contraseña incorrectos."),
-        ),
-      );
+          if (user == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No se pudo recuperar la información del usuario.',
+                ),
+              ),
+            );
+            return;
+          }
+
+          UserSession.currentUser = user;
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(
+                userName: user.name,
+              ),
+            ),
+          );
+
+          return;
+
+        case LoginStatus.userNotFound:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No existe una cuenta registrada con ese correo.',
+              ),
+            ),
+          );
+          return;
+
+        case LoginStatus.invalidPassword:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'La contraseña ingresada es incorrecta.',
+              ),
+            ),
+          );
+          return;
+
+        case LoginStatus.invalidRequest:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Completá correctamente todos los campos.',
+              ),
+            ),
+          );
+          return;
+
+        case LoginStatus.serverError:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Ocurrió un error en el servidor. Intentá nuevamente.',
+              ),
+            ),
+          );
+          return;
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -77,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "No se pudo conectar con el servidor. Intentá nuevamente.",
+            'No se pudo conectar con el servidor. Intentá nuevamente.',
           ),
         ),
       );
@@ -88,39 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
-  }
-
-  Future<User?> _loginUser(String email, String password) async {
-    final url = Uri.parse("http://10.0.2.2:8080/login");
-
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        "email": email,
-        "password": password,
-      }),
-    );
-
-    if (response.statusCode != 200 ||
-        response.body.isEmpty ||
-        response.body == "null") {
-      return null;
-    }
-
-    final decodedBody = jsonDecode(response.body);
-
-    if (decodedBody is! Map<String, dynamic>) {
-      return null;
-    }
-
-    final user = User.fromJson(decodedBody);
-
-    UserSession.currentUser = user;
-
-    return user;
   }
 
   String? _validateEmail(String? value) {

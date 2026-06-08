@@ -24,7 +24,8 @@ public class SecurityConfig {
                     "/register",
                     "/login",
                     "/update/**",
-                    "/meals/**"
+                    "/meals/**",
+                    "/recommended-plates/**"
                 ).permitAll()
                 .anyRequest().authenticated() 
             );
